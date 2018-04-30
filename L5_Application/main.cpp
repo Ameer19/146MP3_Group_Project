@@ -27,43 +27,95 @@
 
 QueueHandle_t MP3Queue;
 MP3Decoder MP3Player;
+char playlist [20][100] = {0};
 
-FRESULT Storage :: readMP3File()//const char* pFilename,  void* pData, unsigned int bytesToRead, unsigned int offset
+FRESULT Storage :: readallMP3Files()//const char* pFilename,  void* pData, unsigned int bytesToRead, unsigned int offset
 {
-    FRESULT filestatus = FR_INT_ERR; //just an initial value. Should be overwritten.
+   DIR Dir;
+   FILINFO Finfo;
+   FATFS *fs;
+   FRESULT returnCode = FR_OK;
+   unsigned int fileBytesTotal = 0, numFiles = 0, numDirs = 0;
+
+   #if _USE_LFN
+       char Lfname[_MAX_LFN];
+   #endif
+
+   const char *dirPath = "1:";
+   if (FR_OK != (returnCode = f_opendir(&Dir, dirPath))) {
+       printf("Invalid directory: |%s| (Error %i)\n", dirPath, returnCode);
+   }
+
+   int arrayindex = 0;
+
+   while (returnCode == FR_OK)
+   {
+       #if _USE_LFN
+           Finfo.lfname = Lfname;
+           Finfo.lfsize = sizeof(Lfname);
+       #endif
+
+       returnCode = f_readdir(&Dir, &Finfo);
+       if ( (FR_OK != returnCode) || !Finfo.fname[0]) {
+           break;
+       }
+
+       int checksysvolinfo = strcmp (Lfname, "System Volume Information");
+       int checknewline = strcmp (Lfname, "\0");
+       if (checksysvolinfo != 0 && checknewline != 0){
+           char mystring [100] = {0};
+           strcat(mystring, dirPath);
+           strcat(mystring, Lfname);
+           strcpy(&playlist[arrayindex][0], mystring);
+           arrayindex++;
+       }
+   }
+   for (int i = 0 ; i < arrayindex+1 ; i++){
+       printf ("%s\n",playlist[i]);
+   }
+   //Got all file names in directory!
+   //TODO: Ensure only MP3 files are included in the playlist array of character strings.
+
     FRESULT mountstatus;
+    FRESULT findstatus;
     FRESULT readstatus;
     static FIL mp3file;
     FATFS myFileSystem; //my work area (filesystem object).
     BYTE buffer[512];
     UINT filereadbytescount;//dont know what this does yet.
 
-    mountstatus = f_mount((FATFS*)&myFileSystem, (const char*)"1:", 1);//force mount the drive.
-    filestatus = f_open (&mp3file, "1:mymp3.mp3", FA_OPEN_EXISTING | FA_READ);
-    readstatus = f_read(&mp3file, buffer, 512, &filereadbytescount);
+    for (int i = 0 ; i < arrayindex+1 ; i++){
+        mountstatus = f_mount((FATFS*)&myFileSystem, (const char*)"1:", 1);//force mount the drive.
+        findstatus = f_open (&mp3file, playlist[i], FA_OPEN_EXISTING | FA_READ);
+        readstatus = f_read(&mp3file, buffer, 512, &filereadbytescount);
 
-    while (filestatus == FR_OK && mountstatus == FR_OK){
-        if (readstatus == FR_OK){
-//            printf ("%i\n", readstatus);
-//            printf ("%i\n", filereadbytescount);
-//            printf ("%s\n", buffer);
-            if (xQueueSend(MP3Queue, buffer, portMAX_DELAY)){
-//                printf ("Data sent.\n");
+        while (findstatus == FR_OK && mountstatus == FR_OK){
+            if (readstatus == FR_OK){
+        //            printf ("%i\n", readstatus);
+        //            printf ("%i\n", filereadbytescount);
+        //            printf ("%s\n", buffer);
+                if (xQueueSend(MP3Queue, buffer, portMAX_DELAY)){
+        //                printf ("Data sent.\n");
+                }
+                readstatus = f_read(&mp3file, buffer, 512, &filereadbytescount);
             }
-            readstatus = f_read(&mp3file, buffer, 512, &filereadbytescount);
         }
-    }
+    }   //This for loop will constantly send data from the SD card to MP3 Decoder based on file paths in playlist array.
+
     return readstatus;
 }
+
+
 
 void MP3FileReadTask(void *p){
     while(1){
         //call readMP3FILE when suitable.
-        Storage::readMP3File();
+        Storage::readallMP3Files();
+        vTaskDelay(1000);
     }
 }
 
-void SendDataToMP3DecoderTask(void *p){
+void MP3DecoderReadDataTask(void *p){
     BYTE decoderbuffer[512];
     MP3Player.init();
     while(1){
@@ -78,16 +130,16 @@ void SendDataToMP3DecoderTask(void *p){
     }
 }
 
-void testTask(void *p)
-{
-    MP3Player.init();
-    while(1)
-    {
-        uint16_t data = MP3Player.read_from_decoder(0x0B);
-        //u0_dbg_printf("%x\n", data);
-        vTaskDelay(1000);
-    }
-}
+//void testTask(void *p)
+//{
+//    MP3Player.init();
+//    while(1)
+//    {
+//        uint16_t data = MP3Player.read_from_decoder(0x0B);
+//        //u0_dbg_printf("%x\n", data);
+//        vTaskDelay(1000);
+//    }
+//}
 
 //Helper tasks to suspend/resume tasks at will. Not used for MP3 Project, will be cleaned.
 TaskHandle_t producer_task_handle;
@@ -130,12 +182,13 @@ int main(int argc, char const *argv[])
     //Sensor_queue = xQueueCreate(100, sizeof(float));
     MP3Queue = xQueueCreate(3, 512); // a Queue of depth 3 that can store 512.
 
-    xTaskCreate(MP3FileReadTask, (const char*) "MP3FileReader", 1024, NULL, 2, NULL);
-    xTaskCreate(SendDataToMP3DecoderTask, (const char*) "Play MP3", 1024, NULL, 3, NULL);
+    xTaskCreate(MP3FileReadTask, (const char*) "MP3FileReader", 4096, NULL, 2, NULL);
+    xTaskCreate(MP3DecoderReadDataTask, (const char*) "Play MP3", 1024, NULL, 3, NULL);
     //xTaskCreate(testTask, (const char*) "testTask", 1024, NULL, 2, NULL);
-    scheduler_add_task(new terminalTask(PRIORITY_HIGH));
+    //scheduler_add_task(new terminalTask(PRIORITY_HIGH));
     scheduler_start();
 
 
     vTaskStartScheduler();
 }
+

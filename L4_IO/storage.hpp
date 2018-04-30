@@ -101,7 +101,7 @@ class Storage
         //my custom MP3 File Reader. Not sure if I should put this here.
 
         static FRESULT readMP3File();//const char* pFilename,  void* pData, unsigned int bytesToRead, unsigned int offset
-
+        static FRESULT readallMP3Files();
 
     private:
         /// Private constructor to restrict object creation

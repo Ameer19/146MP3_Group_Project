@@ -1,9 +1,10 @@
-This is my teams MP3 Player Project for the CMPE 146 class at SJSU, Realtime Embedded System Co-Design.
+-----------------------------------------------------------------------------
+To get started, have a look at L5_Application/main.cpp and the example tasks.
 
-Our team consists of:
-Ajay Curam
-Ameer Ali
-Andrew Hu
-Ryan Will
+You can change a #define 0 to #define 1 for one example at a time and look
+through the code of each example.
 
-The goal of this project is to create a functional MP3 Player using an LPC 1768 micro-controller, FreeRTOS, and embedded C/C++ development.
+The general idea is to interact with the project through terminal commands.
+-----------------------------------------------------------------------------
+See "ChangeLog" for the changes made to the sample project source code.
+-----------------------------------------------------------------------------
