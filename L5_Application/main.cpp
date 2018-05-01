@@ -14,6 +14,7 @@
 #include "lpc_sys.h"
 #include "soft_timer.hpp"
 #include "event_groups.h"
+#include "LabGPIO.hpp"
 
 #include <stdio.h>
 #include "FreeRTOS.h"
@@ -27,6 +28,8 @@
 //Test Comment
 QueueHandle_t MP3Queue;
 MP3Decoder MP3Player;
+LabGPIO Play_Pause(1,9);
+TaskHandle_t MP3PlayPause = NULL;
 char playlist [20][100] = {0};
 
 FRESULT Storage :: readallMP3Files()//const char* pFilename,  void* pData, unsigned int bytesToRead, unsigned int offset
@@ -174,6 +177,39 @@ CMD_HANDLER_FUNC(taskResumeHandler){
 }
 // End task suspend/resume
 
+void Play_Pause_Button(void *p)
+{
+    bool play_status = false;
+    uint8_t alternate_status = 1;
+    while(1)
+    {
+        vTaskDelay(100);
+        if(Play_Pause.getLevel())
+        {
+            play_status = true;
+        }
+        else
+        {
+            play_status = false;
+        }
+
+        if(play_status)
+        {
+            if(alternate_status)
+            {
+                vTaskResume(MP3PlayPause);
+                alternate_status--;
+            }
+            else
+            {
+                vTaskSuspend(MP3PlayPause);
+                alternate_status++;
+            }
+        }
+        vTaskDelay(1);
+    }
+}
+
 
 int main(int argc, char const *argv[])
 {
@@ -183,7 +219,8 @@ int main(int argc, char const *argv[])
     MP3Queue = xQueueCreate(3, 512); // a Queue of depth 3 that can store 512.
 
     xTaskCreate(MP3FileReadTask, (const char*) "MP3FileReader", 4096, NULL, 2, NULL);
-    xTaskCreate(MP3DecoderReadDataTask, (const char*) "Play MP3", 1024, NULL, 3, NULL);
+    xTaskCreate(MP3DecoderReadDataTask, (const char*) "Play MP3", 1024, NULL, 3, &MP3PlayPause);
+    xTaskCreate(Play_Pause_Button, (const char*) "Play/Pause", 1024, NULL, 2, NULL);
     //xTaskCreate(testTask, (const char*) "testTask", 1024, NULL, 2, NULL);
     //scheduler_add_task(new terminalTask(PRIORITY_HIGH));
     scheduler_start();
