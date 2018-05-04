@@ -24,6 +24,7 @@
 #include <stdio.h>
 #include "scheduler_task.hpp"
 #include "MP3DecoderDriver.hpp"
+#include "lab5uart.h"
 
 //Test Comment
 //Test Comment 2
@@ -32,6 +33,8 @@ MP3Decoder MP3Player;
 LabGPIO Play_Pause(1,9);
 TaskHandle_t MP3PlayPause = NULL;
 char playlist [20][100] = {0};
+Lab5_UART UART;
+
 
 FRESULT Storage :: readallMP3Files()//const char* pFilename,  void* pData, unsigned int bytesToRead, unsigned int offset
 {
@@ -109,7 +112,40 @@ FRESULT Storage :: readallMP3Files()//const char* pFilename,  void* pData, unsig
     return readstatus;
 }
 
+void LCDTask (void *p){
+    UART.Init();
+    // Line 1
+    char *temp = playlist[1];
+    // Line 2
+    int menuSelect = 1;
+    char menu1[17] = "  <  >   P   ?  ";
+    char menu2[17] = "  <  >   V   ?  ";
+    UART.lcd_line_two(menu1);
+    while(1){
+        /* Line 1 scrolling */
+        UART.lcd_line_one(temp);
+        if(*(temp + 16) >= 32) {
+            temp++;
+        }
+        else
+            temp = playlist[1];
 
+        /* Line 2 menuselect */
+        switch(menuSelect){
+            case 1: UART.lcd_line_two(menu1);
+            break;
+            case 2: UART.lcd_line_two(menu2);
+            break;
+        }
+        vTaskDelay(1000);
+        /*
+        for (int i = 0; i < 20; i++){
+            UART.lcd_line_one(playlist[i]);
+            vTaskDelay(1000);
+        }
+        */
+    }
+}
 
 void MP3FileReadTask(void *p){
     while(1){
@@ -219,9 +255,11 @@ int main(int argc, char const *argv[])
     //Sensor_queue = xQueueCreate(100, sizeof(float));
     MP3Queue = xQueueCreate(3, 512); // a Queue of depth 3 that can store 512.
 
-    xTaskCreate(MP3FileReadTask, (const char*) "MP3FileReader", 4096, NULL, 2, NULL);
+    xTaskCreate(MP3FileReadTask, (const char*) "MP3FileReader", 4096, NULL, 2, NULL); // highest priority
     xTaskCreate(MP3DecoderReadDataTask, (const char*) "Play MP3", 1024, NULL, 3, &MP3PlayPause);
     xTaskCreate(Play_Pause_Button, (const char*) "Play/Pause", 1024, NULL, 2, NULL);
+    xTaskCreate(LCDTask, (const char*) "LCD Task", 1024, NULL, 2, NULL);
+
     //xTaskCreate(testTask, (const char*) "testTask", 1024, NULL, 2, NULL);
     //scheduler_add_task(new terminalTask(PRIORITY_HIGH));
     scheduler_start();
