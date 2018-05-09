@@ -19,6 +19,7 @@ public:
         void write_to_decoder(uint8_t addr, uint16_t data_out);
         uint16_t read_from_decoder(uint8_t addr);   //For checking purposes
         void playMP3Track(uint8_t buffer[]);
+        void volumeControl(bool higher, bool init);
         LabSPI audio;
 private:
      //LabSPI audio;    //Is this Safe? Using SSP0 for decoder

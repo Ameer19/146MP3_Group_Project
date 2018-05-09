@@ -7,6 +7,7 @@
 #include "MP3DecoderDriver.hpp"
 #include "printf_lib.h"
 #include "utilities.h"
+#include "tasks.hpp"
 
 #define SCI_MODE 0x00
 #define SCI_STATUS 0x01
@@ -25,6 +26,7 @@
 #define SCI_AICTRL2 0x0E
 #define SCI_AICTRL3 0x0F
 
+uint8_t volume_level = 5;
 
 void MP3Decoder::init()
 {
@@ -51,14 +53,18 @@ void MP3Decoder::init()
     write_to_decoder(SCI_CLOCKF, 0x2000);       //Set up Clock register
     write_to_decoder(SCI_AUDATA, 0xAC45);       //Set up AudioData register               `
     //write_to_decoder(SCI_VOL, 0x2424);          //Set up Volume register
-    write_to_decoder(SCI_VOL, 0x5555);
-    //uint16_t data = read_from_decoder(SCI_MODE);
+    volumeControl(true, true);
+    //uint16_t data = read_from_decoder(SCI_VOL);
     //u0_dbg_printf("mode data = %x\n", data);
 
 }
 void MP3Decoder::write_to_decoder(uint8_t addr, uint16_t data_out)
 {
-    while(!(LPC_GPIO1->FIOPIN & (1 << 23)));
+    while(!(LPC_GPIO1->FIOPIN & (1 << 23)))
+    {
+        //vTaskDelay(1);
+    }
+
     LPC_GPIO1->FIOCLR = (1 << 22);
     audio.transfer(0x02);
     audio.transfer(addr);
@@ -71,24 +77,43 @@ void MP3Decoder::write_to_decoder(uint8_t addr, uint16_t data_out)
     //u0_dbg_printf("lowByte = %x\n", lowByte);
     audio.transfer(lowByte);
 
-    while(!(LPC_GPIO1->FIOPIN & (1 << 23)));
+    while(!(LPC_GPIO1->FIOPIN & (1 << 23)))
+    {
+        //vTaskDelay(1);
+    }
+
     LPC_GPIO1->FIOSET = (1 << 22);
 }
 
 uint16_t MP3Decoder::read_from_decoder(uint8_t addr)
 {
     while(!(LPC_GPIO1->FIOPIN & (1 << 23)));
+    {
+        //vTaskDelay(1);
+    }
+
     LPC_GPIO1->FIOCLR = (1 << 22);
     audio.transfer(0x03);
     audio.transfer(addr);
     uint8_t highByte = audio.transfer(0xFF);
-    while(!(LPC_GPIO1->FIOPIN & (1 << 23)));
+
+    while(!(LPC_GPIO1->FIOPIN & (1 << 23)))
+    {
+        //vTaskDelay(1);
+    }
+
     uint8_t lowByte = audio.transfer(0xFF);
-    while(!(LPC_GPIO1->FIOPIN & (1 << 23)));
+
+    while(!(LPC_GPIO1->FIOPIN & (1 << 23)))
+    {
+        //vTaskDelay(1);
+    }
+
     LPC_GPIO1->FIOSET = (1 << 22);
 
     uint16_t dataRead = highByte << 8;
     dataRead |= lowByte;
+    //u0_dbg_printf("dataRead: %x\n", dataRead);
 
     return dataRead;
 }
@@ -98,9 +123,10 @@ void MP3Decoder::playMP3Track(uint8_t buffer[])
     for(uint8_t byteIndex = 0; byteIndex < 16; byteIndex++)         //Iterate through all 16 32 byte chunks
     {
         //u0_dbg_printf("byteIndex = %d\n", byteIndex);
-        while(!(LPC_GPIO1->FIOPIN & (1 << 23)));// {                     //Wait until DREQ is set to high
-        //    vTaskDelay(1);
-        //}
+        while(!(LPC_GPIO1->FIOPIN & (1 << 23)))                     //Wait until DREQ is set to high
+        {
+            //vTaskDelay(1);
+        }
 
         LPC_GPIO1->FIOCLR = (1 << 20);                              //Select SDI CS
         for(uint16_t i = 32 * byteIndex; i < (32 * byteIndex) + 32; i++)
@@ -109,9 +135,66 @@ void MP3Decoder::playMP3Track(uint8_t buffer[])
             MP3Decoder::audio.transfer(buffer[i]);           //Send next 32 bytes to decoder
             //delay_ms(100);
         }
-        while(!(LPC_GPIO1->FIOPIN & (1 << 23)));                      //Wait until DREQ is set to high
+
+        while(!(LPC_GPIO1->FIOPIN & (1 << 23)))                      //Wait until DREQ is set to high
+        {
+            //vTaskDelay(1);
+        }
+
         LPC_GPIO1->FIOSET = (1 << 20);                              //Deselect SDI CS
     }
 }
 
+void MP3Decoder::volumeControl(bool higher, bool init)
+{
+    if(higher && volume_level < 8 && !init)
+    {
+        volume_level++;
+    }
+    else if(!higher && volume_level > 1 && !init){
+        volume_level--;
+    }
+
+    if(volume_level == 8)
+    {
+        write_to_decoder(SCI_VOL, 0x1010);
+        u0_dbg_printf("volume level = %i", volume_level);
+    }
+    else if(volume_level == 7)
+    {
+        write_to_decoder(SCI_VOL, 0x3232);
+        u0_dbg_printf("volume level = %i", volume_level);
+    }
+    else if(volume_level == 6)
+    {
+        write_to_decoder(SCI_VOL, 0x5454);
+        u0_dbg_printf("volume level = %i", volume_level);
+    }
+    else if(volume_level == 5)
+    {
+        write_to_decoder(SCI_VOL, 0x7676);
+        u0_dbg_printf("volume level = %i", volume_level);
+    }
+    else if(volume_level == 4)
+    {
+        write_to_decoder(SCI_VOL, 0x9898);
+        u0_dbg_printf("volume level = %i", volume_level);
+    }
+    else if(volume_level == 3)
+    {
+        write_to_decoder(SCI_VOL, 0xBABA);
+        u0_dbg_printf("volume level = %i", volume_level);
+    }
+    else if(volume_level == 2)
+    {
+        write_to_decoder(SCI_VOL, 0xDCDC);
+        u0_dbg_printf("volume level = %i", volume_level);
+    }
+    else if(volume_level == 1)
+    {
+        write_to_decoder(SCI_VOL, 0xFEFE);
+        u0_dbg_printf("volume level = %i", volume_level);
+    }
+    vTaskDelay(1000);
+}
 

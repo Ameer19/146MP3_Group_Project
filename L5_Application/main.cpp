@@ -28,9 +28,12 @@
 
 //Test Comment
 //Test Comment 2
+
 QueueHandle_t MP3Queue;
 MP3Decoder MP3Player;
 LabGPIO Play_Pause(1,9);
+LabGPIO Left_Button(1,10);
+LabGPIO Right_Button(1,14);
 TaskHandle_t MP3PlayPause = NULL;
 char playlist [20][100] = {0};
 Lab5_UART UART;
@@ -214,6 +217,21 @@ CMD_HANDLER_FUNC(taskResumeHandler){
 }
 // End task suspend/resume
 
+
+//CMD_HANDLER_FUNC(MP3Playback)
+//{
+//    //cmdParams.scanf("%s");
+//    if(cmdParams == "play")
+//    {
+//        vTaskResume(MP3PlayPause);
+//    }
+//    if(cmdParams == "pause")
+//    {
+//        vTaskSuspend(MP3PlayPause);
+//    }
+//    return true;
+//}
+
 void Play_Pause_Button(void *p)
 {
     bool play_status = false;
@@ -247,6 +265,35 @@ void Play_Pause_Button(void *p)
     }
 }
 
+void Volume_Control(void *p)
+{
+    bool left_vol_status = false;
+    bool right_vol_status = false;
+    while(1)
+    {
+        vTaskDelay(100);
+        if(Left_Button.getLevel())
+        {
+            left_vol_status = true;
+        }
+        else if(Right_Button.getLevel())
+        {
+            right_vol_status = true;
+        }
+
+        if(left_vol_status)
+        {
+            MP3Player.volumeControl(true, false);
+            left_vol_status = false;
+        }
+        else if(right_vol_status)
+        {
+            MP3Player.volumeControl(false, false);
+            right_vol_status = false;
+        }
+
+    }
+}
 
 int main(int argc, char const *argv[])
 {
@@ -254,17 +301,17 @@ int main(int argc, char const *argv[])
     //myEGH = xEventGroupCreate();//returns the id of the event group to task_watchdog
     //Sensor_queue = xQueueCreate(100, sizeof(float));
     MP3Queue = xQueueCreate(3, 512); // a Queue of depth 3 that can store 512.
+    Play_Pause.setDirection(false);
+    Left_Button.setDirection(false);
+    Right_Button.setDirection(false);
 
-    xTaskCreate(MP3FileReadTask, (const char*) "MP3FileReader", 4096, NULL, 2, NULL); // highest priority
-    xTaskCreate(MP3DecoderReadDataTask, (const char*) "Play MP3", 1024, NULL, 3, &MP3PlayPause);
+    xTaskCreate(MP3FileReadTask, (const char*) "MP3FileReader", 1024, NULL, 2, NULL);
+    xTaskCreate(SendDataToMP3DecoderTask, (const char*) "Play MP3", 1024, NULL, 2, &MP3PlayPause);
     xTaskCreate(Play_Pause_Button, (const char*) "Play/Pause", 1024, NULL, 2, NULL);
-    xTaskCreate(LCDTask, (const char*) "LCD Task", 1024, NULL, 2, NULL);
-
-    //xTaskCreate(testTask, (const char*) "testTask", 1024, NULL, 2, NULL);
+    xTaskCreate(Volume_Control, (const char*) "Volume Control", 1024, NULL, 2, NULL);
+	xTaskCreate(LCDTask, (const char*) "LCD Task", 1024, NULL, 2, NULL);
     //scheduler_add_task(new terminalTask(PRIORITY_HIGH));
-    scheduler_start();
-
+    //scheduler_start();
 
     vTaskStartScheduler();
 }
-
