@@ -36,6 +36,7 @@ LabGPIO Left_Button(1,10);
 LabGPIO Right_Button(1,14);
 TaskHandle_t MP3PlayPause = NULL;
 char playlist [20][100] = {0};
+char* currenttrack;
 Lab5_UART UART;
 
 
@@ -84,11 +85,11 @@ FRESULT Storage :: readallMP3Files()//const char* pFilename,  void* pData, unsig
        printf ("%s\n",playlist[i]);
    }
    //Got all file names in directory!
-   //TODO: Ensure only MP3 files are included in the playlist array of character strings.
 
     FRESULT mountstatus;
     FRESULT findstatus;
     FRESULT readstatus;
+    int feofstatus;
     static FIL mp3file;
     FATFS myFileSystem; //my work area (filesystem object).
     BYTE buffer[512];
@@ -98,8 +99,10 @@ FRESULT Storage :: readallMP3Files()//const char* pFilename,  void* pData, unsig
         mountstatus = f_mount((FATFS*)&myFileSystem, (const char*)"1:", 1);//force mount the drive.
         findstatus = f_open (&mp3file, playlist[i], FA_OPEN_EXISTING | FA_READ);
         readstatus = f_read(&mp3file, buffer, 512, &filereadbytescount);
-
-        while (findstatus == FR_OK && mountstatus == FR_OK){
+        feofstatus = f_eof(&mp3file);
+        currenttrack = playlist[i];
+        while (findstatus == FR_OK && mountstatus == FR_OK && feofstatus != 1){
+            feofstatus = f_eof(&mp3file);
             if (readstatus == FR_OK){
         //            printf ("%i\n", readstatus);
         //            printf ("%i\n", filereadbytescount);
@@ -109,6 +112,7 @@ FRESULT Storage :: readallMP3Files()//const char* pFilename,  void* pData, unsig
                 }
                 readstatus = f_read(&mp3file, buffer, 512, &filereadbytescount);
             }
+            //TODO: Insert code to switch between tracks. A GPIO button should change the current i to i++/i-- depending on next/prev track respectively
         }
     }   //This for loop will constantly send data from the SD card to MP3 Decoder based on file paths in playlist array.
 
@@ -118,10 +122,10 @@ FRESULT Storage :: readallMP3Files()//const char* pFilename,  void* pData, unsig
 void LCDTask (void *p){
     UART.Init();
     // Line 1
-    char *temp = playlist[1];
+    char *temp = currenttrack;
     // Line 2
     int menuSelect = 1;
-    char menu1[17] = "  <  >   P   ?  ";
+    char menu1[17] = "  P  V+  V-  ?  ";
     char menu2[17] = "  <  >   V   ?  ";
     UART.lcd_line_two(menu1);
     while(1){
@@ -131,7 +135,7 @@ void LCDTask (void *p){
             temp++;
         }
         else
-            temp = playlist[1];
+            temp = currenttrack;
 
         /* Line 2 menuselect */
         switch(menuSelect){
@@ -306,7 +310,7 @@ int main(int argc, char const *argv[])
     Right_Button.setDirection(false);
 
     xTaskCreate(MP3FileReadTask, (const char*) "MP3FileReader", 1024, NULL, 2, NULL);
-    xTaskCreate(SendDataToMP3DecoderTask, (const char*) "Play MP3", 1024, NULL, 2, &MP3PlayPause);
+    xTaskCreate(MP3DecoderReadDataTask, (const char*) "Play MP3", 1024, NULL, 2, &MP3PlayPause);
     xTaskCreate(Play_Pause_Button, (const char*) "Play/Pause", 1024, NULL, 2, NULL);
     xTaskCreate(Volume_Control, (const char*) "Volume Control", 1024, NULL, 2, NULL);
 	xTaskCreate(LCDTask, (const char*) "LCD Task", 1024, NULL, 2, NULL);
