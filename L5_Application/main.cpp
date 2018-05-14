@@ -31,60 +31,72 @@
 
 QueueHandle_t MP3Queue;
 MP3Decoder MP3Player;
-LabGPIO Play_Pause(1,9);
-LabGPIO Left_Button(1,10);
-LabGPIO Right_Button(1,14);
+LabGPIO Play_Pause(1,9); //s0
+LabGPIO Volume_Up_Button(1,10); //s1
+LabGPIO Volume_Down_Button(1,14); //s2
+LabGPIO Previous_Button(1,15); //s3
+LabGPIO Next_Button(1,28);//^external switch
 TaskHandle_t MP3PlayPause = NULL;
 char playlist [20][100] = {0};
 char* currenttrack;
 Lab5_UART UART;
+int arrayindex = 0;
+int lcdchangetrack = 0;
+bool playlistgenerationflag = true;
 
 
 FRESULT Storage :: readallMP3Files()//const char* pFilename,  void* pData, unsigned int bytesToRead, unsigned int offset
 {
-   DIR Dir;
-   FILINFO Finfo;
-   FATFS *fs;
-   FRESULT returnCode = FR_OK;
-   unsigned int fileBytesTotal = 0, numFiles = 0, numDirs = 0;
 
-   #if _USE_LFN
-       char Lfname[_MAX_LFN];
-   #endif
+   if (playlistgenerationflag){
+       arrayindex = 0;
+       DIR Dir;
+       FILINFO Finfo;
+       FRESULT returnCode = FR_OK;
 
-   const char *dirPath = "1:";
-   if (FR_OK != (returnCode = f_opendir(&Dir, dirPath))) {
-       printf("Invalid directory: |%s| (Error %i)\n", dirPath, returnCode);
-   }
-
-   int arrayindex = 0;
-
-   while (returnCode == FR_OK)
-   {
        #if _USE_LFN
-           Finfo.lfname = Lfname;
-           Finfo.lfsize = sizeof(Lfname);
+           char Lfname[_MAX_LFN];
        #endif
 
-       returnCode = f_readdir(&Dir, &Finfo);
-       if ( (FR_OK != returnCode) || !Finfo.fname[0]) {
-           break;
+       const char *dirPath = "1:";
+       if (FR_OK != (returnCode = f_opendir(&Dir, dirPath))) {
+           printf("Invalid directory: |%s| (Error %i)\n", dirPath, returnCode);
        }
 
-       int checksysvolinfo = strcmp (Lfname, "System Volume Information");
-       int checknewline = strcmp (Lfname, "\0");
-       if (checksysvolinfo != 0 && checknewline != 0){
-           char mystring [100] = {0};
-           strcat(mystring, dirPath);
-           strcat(mystring, Lfname);
-           strcpy(&playlist[arrayindex][0], mystring);
-           arrayindex++;
+       while (returnCode == FR_OK)
+       {
+
+           #if _USE_LFN
+               Finfo.lfname = Lfname;
+               Finfo.lfsize = sizeof(Lfname);
+           #endif
+
+           returnCode = f_readdir(&Dir, &Finfo);
+           if ( (FR_OK != returnCode) || !Finfo.fname[0]) {
+               break;
+           }
+
+           int checksysvolinfo = strcmp (Lfname, "System Volume Information");
+           int checknewline = strcmp (Lfname, "\0");
+           if (checksysvolinfo != 0 && checknewline != 0){
+               char mystring [100] = {0};
+               strcat(mystring, dirPath);
+               strcat(mystring, Lfname);
+               strcpy(&playlist[arrayindex][0], mystring);
+               arrayindex++;
+           }
+
+
        }
+       playlistgenerationflag = false;
    }
    for (int i = 0 ; i < arrayindex+1 ; i++){
        printf ("%s\n",playlist[i]);
    }
+
    //Got all file names in directory!
+
+
 
     FRESULT mountstatus;
     FRESULT findstatus;
@@ -95,22 +107,35 @@ FRESULT Storage :: readallMP3Files()//const char* pFilename,  void* pData, unsig
     BYTE buffer[512];
     UINT filereadbytescount;//dont know what this does yet.
 
-    for (int i = 0 ; i < arrayindex+1 ; i++){
+    for (int j = 0 ; j < arrayindex+1 ; j++){
         mountstatus = f_mount((FATFS*)&myFileSystem, (const char*)"1:", 1);//force mount the drive.
-        findstatus = f_open (&mp3file, playlist[i], FA_OPEN_EXISTING | FA_READ);
+        findstatus = f_open (&mp3file, playlist[j], FA_OPEN_EXISTING | FA_READ);
         readstatus = f_read(&mp3file, buffer, 512, &filereadbytescount);
         feofstatus = f_eof(&mp3file);
-        currenttrack = playlist[i];
+        currenttrack = playlist[j];
         while (findstatus == FR_OK && mountstatus == FR_OK && feofstatus != 1){
             feofstatus = f_eof(&mp3file);
             if (readstatus == FR_OK){
-        //            printf ("%i\n", readstatus);
-        //            printf ("%i\n", filereadbytescount);
-        //            printf ("%s\n", buffer);
-                if (xQueueSend(MP3Queue, buffer, portMAX_DELAY)){
-        //                printf ("Data sent.\n");
+                    //printf ("%i\n", readstatus);
+                    //printf ("%i\n", filereadbytescount);
+                    //printf ("%s\n", buffer);
+                    if (xQueueSend(MP3Queue, buffer, portMAX_DELAY)){
+                        //printf ("Data sent.\n");
+                    }
+                    readstatus = f_read(&mp3file, buffer, 512, &filereadbytescount);
+                if (Previous_Button.getLevel()){
+                    //go to previous track.
+                    vTaskDelay(100);
+                    j-=2;
+                    //u0_dbg_printf("previous track selected.\n");
+                    break;
+
                 }
-                readstatus = f_read(&mp3file, buffer, 512, &filereadbytescount);
+                if (Next_Button.getLevel()){
+                    vTaskDelay(100);
+                    //u0_dbg_printf("next track selected.\n");
+                    break;
+                }
             }
             //TODO: Insert code to switch between tracks. A GPIO button should change the current i to i++/i-- depending on next/prev track respectively
         }
@@ -122,13 +147,12 @@ FRESULT Storage :: readallMP3Files()//const char* pFilename,  void* pData, unsig
 void LCDTask (void *p){
     UART.Init();
     // Line 1
-    char *temp = currenttrack;
     // Line 2
-    int menuSelect = 1;
-    char menu1[17] = "  P  V+  V-  ?  ";
-    char menu2[17] = "  <  >   V   ?  ";
+    char *temp = currenttrack;
+    char menu1[17] = " P V+ V- Pr ^Ne ";
     UART.lcd_line_two(menu1);
     while(1){
+
         /* Line 1 scrolling */
         UART.lcd_line_one(temp);
         if(*(temp + 16) >= 32) {
@@ -138,12 +162,7 @@ void LCDTask (void *p){
             temp = currenttrack;
 
         /* Line 2 menuselect */
-        switch(menuSelect){
-            case 1: UART.lcd_line_two(menu1);
-            break;
-            case 2: UART.lcd_line_two(menu2);
-            break;
-        }
+
         vTaskDelay(1000);
         /*
         for (int i = 0; i < 20; i++){
@@ -276,11 +295,11 @@ void Volume_Control(void *p)
     while(1)
     {
         vTaskDelay(100);
-        if(Left_Button.getLevel())
+        if(Volume_Up_Button.getLevel())
         {
             left_vol_status = true;
         }
-        else if(Right_Button.getLevel())
+        else if(Volume_Down_Button.getLevel())
         {
             right_vol_status = true;
         }
@@ -306,8 +325,8 @@ int main(int argc, char const *argv[])
     //Sensor_queue = xQueueCreate(100, sizeof(float));
     MP3Queue = xQueueCreate(3, 512); // a Queue of depth 3 that can store 512.
     Play_Pause.setDirection(false);
-    Left_Button.setDirection(false);
-    Right_Button.setDirection(false);
+    Volume_Up_Button.setDirection(false);
+    Volume_Down_Button.setDirection(false);
 
     xTaskCreate(MP3FileReadTask, (const char*) "MP3FileReader", 1024, NULL, 2, NULL);
     xTaskCreate(MP3DecoderReadDataTask, (const char*) "Play MP3", 1024, NULL, 2, &MP3PlayPause);
