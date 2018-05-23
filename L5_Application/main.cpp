@@ -38,12 +38,12 @@ LabGPIO Previous_Button(1,15); //s3
 LabGPIO Next_Button(1,28);//^external switch
 TaskHandle_t MP3PlayPause = NULL;
 char playlist [20][100] = {0};
-char* currenttrack;
+char placeholderonboot [17] = "--Initializing--";
+char* currenttrack = placeholderonboot;
 Lab5_UART UART;
 int arrayindex = 0;
 int lcdchangetrack = 0;
 bool playlistgenerationflag = true;
-
 
 FRESULT Storage :: readallMP3Files()//const char* pFilename,  void* pData, unsigned int bytesToRead, unsigned int offset
 {
@@ -96,8 +96,6 @@ FRESULT Storage :: readallMP3Files()//const char* pFilename,  void* pData, unsig
 
    //Got all file names in directory!
 
-
-
     FRESULT mountstatus;
     FRESULT findstatus;
     FRESULT readstatus;
@@ -124,23 +122,27 @@ FRESULT Storage :: readallMP3Files()//const char* pFilename,  void* pData, unsig
                     }
                     readstatus = f_read(&mp3file, buffer, 512, &filereadbytescount);
                 if (Previous_Button.getLevel()){
-                    //go to previous track.
-                    vTaskDelay(100);
+                    while(Previous_Button.getLevel()){
+                        vTaskDelay(1);
+                    }
                     j-=2;
                     //u0_dbg_printf("previous track selected.\n");
                     break;
-
                 }
                 if (Next_Button.getLevel()){
-                    vTaskDelay(100);
+                    while(Next_Button.getLevel()){
+                        vTaskDelay(1);
+                    }
                     //u0_dbg_printf("next track selected.\n");
                     break;
                 }
             }
+            // while(Play_Pause.getLevel()){
+            //vTaskDelay(1);
+            //}
             //TODO: Insert code to switch between tracks. A GPIO button should change the current i to i++/i-- depending on next/prev track respectively
         }
     }   //This for loop will constantly send data from the SD card to MP3 Decoder based on file paths in playlist array.
-
     return readstatus;
 }
 
@@ -264,6 +266,9 @@ void Play_Pause_Button(void *p)
         vTaskDelay(100);
         if(Play_Pause.getLevel())
         {
+            while(Play_Pause.getLevel()){
+                vTaskDelay(1);
+            }
             play_status = true;
         }
         else
@@ -297,10 +302,16 @@ void Volume_Control(void *p)
         vTaskDelay(100);
         if(Volume_Up_Button.getLevel())
         {
+            while(Volume_Up_Button.getLevel()){
+                vTaskDelay(1);
+            }
             left_vol_status = true;
         }
         else if(Volume_Down_Button.getLevel())
         {
+            while(Volume_Down_Button.getLevel()){
+                vTaskDelay(1);
+            }
             right_vol_status = true;
         }
 
@@ -333,8 +344,8 @@ int main(int argc, char const *argv[])
     xTaskCreate(Play_Pause_Button, (const char*) "Play/Pause", 1024, NULL, 2, NULL);
     xTaskCreate(Volume_Control, (const char*) "Volume Control", 1024, NULL, 2, NULL);
 	xTaskCreate(LCDTask, (const char*) "LCD Task", 1024, NULL, 2, NULL);
-    //scheduler_add_task(new terminalTask(PRIORITY_HIGH));
-    //scheduler_start();
+    scheduler_add_task(new terminalTask(PRIORITY_HIGH));
+    scheduler_start();
 
-    vTaskStartScheduler();
+    //vTaskStartScheduler();
 }

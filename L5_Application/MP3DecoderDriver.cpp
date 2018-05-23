@@ -125,7 +125,7 @@ void MP3Decoder::playMP3Track(uint8_t buffer[])
         //u0_dbg_printf("byteIndex = %d\n", byteIndex);
         while(!(LPC_GPIO1->FIOPIN & (1 << 23)))                     //Wait until DREQ is set to high
         {
-            //vTaskDelay(1);
+            vTaskDelay(1);
         }
 
         LPC_GPIO1->FIOCLR = (1 << 20);                              //Select SDI CS
@@ -138,7 +138,7 @@ void MP3Decoder::playMP3Track(uint8_t buffer[])
 
         while(!(LPC_GPIO1->FIOPIN & (1 << 23)))                      //Wait until DREQ is set to high
         {
-            //vTaskDelay(1);
+            vTaskDelay(1);
         }
 
         LPC_GPIO1->FIOSET = (1 << 20);                              //Deselect SDI CS
@@ -162,32 +162,32 @@ void MP3Decoder::volumeControl(bool higher, bool init)
     }
     else if(volume_level == 7)
     {
-        write_to_decoder(SCI_VOL, 0x3232);
+        write_to_decoder(SCI_VOL, 0x2020);
         u0_dbg_printf("volume level = %i", volume_level);
     }
     else if(volume_level == 6)
     {
-        write_to_decoder(SCI_VOL, 0x5454);
+        write_to_decoder(SCI_VOL, 0x2525);
         u0_dbg_printf("volume level = %i", volume_level);
     }
     else if(volume_level == 5)
     {
-        write_to_decoder(SCI_VOL, 0x7676);
+        write_to_decoder(SCI_VOL, 0x3030);
         u0_dbg_printf("volume level = %i", volume_level);
     }
     else if(volume_level == 4)
     {
-        write_to_decoder(SCI_VOL, 0x9898);
+        write_to_decoder(SCI_VOL, 0x3535);
         u0_dbg_printf("volume level = %i", volume_level);
     }
     else if(volume_level == 3)
     {
-        write_to_decoder(SCI_VOL, 0xBABA);
+        write_to_decoder(SCI_VOL, 0x4040);
         u0_dbg_printf("volume level = %i", volume_level);
     }
     else if(volume_level == 2)
     {
-        write_to_decoder(SCI_VOL, 0xDCDC);
+        write_to_decoder(SCI_VOL, 0x4545);
         u0_dbg_printf("volume level = %i", volume_level);
     }
     else if(volume_level == 1)
