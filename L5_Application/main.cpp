@@ -104,9 +104,10 @@ FRESULT Storage :: readallMP3Files()//const char* pFilename,  void* pData, unsig
     FATFS myFileSystem; //my work area (filesystem object).
     BYTE buffer[512];
     UINT filereadbytescount;//dont know what this does yet.
-
+	
+	mountstatus = f_mount((FATFS*)&myFileSystem, (const char*)"1:", 1);//force mount the drive.
     for (int j = 0 ; j < arrayindex+1 ; j++){
-        mountstatus = f_mount((FATFS*)&myFileSystem, (const char*)"1:", 1);//force mount the drive.
+        
         findstatus = f_open (&mp3file, playlist[j], FA_OPEN_EXISTING | FA_READ);
         readstatus = f_read(&mp3file, buffer, 512, &filereadbytescount);
         feofstatus = f_eof(&mp3file);
