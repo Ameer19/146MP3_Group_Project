@@ -4,6 +4,8 @@ This project uses the SJOne on board SD card to read MP3 audio files. This proje
 
 The system communicates to a external MP3 decoder and lets the user interact with the power, songs in the playlist, and change the volume. The LCD display shows a menu that denotes which function belongs to each button.
 
+![Finished MP3 Project](https://github.com/curamaj/146MP3Player/blob/master/Documentation/mp3.PNG?raw=true)
+
 ## Quickstart Instructions
 
 To get started, have a look at L5_Application/main.cpp and the example tasks.
